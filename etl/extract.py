@@ -5,15 +5,15 @@ from datetime import datetime, date
 BASE_DAILY_URL_BCB_PTAX = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)"
 BASE_RANGE_URL_BCB_PTAX = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@dataInicial='MM-DD-YYYY'&@dataFinalCotacao='MM-DD-YYYY'&$format=json&$select=cotacaoCompra,cotacaoVenda,dataHoraCotacao"
 
-def format_date_for_api(data_obj: datetime) -> str:
-    return data_obj.strftime('%m-%d-%Y')
+def format_date_for_api(date_obj: datetime) -> str:
+    return date_obj.strftime('%m-%d-%Y')
 
-def get_cotacao_dolar_diario(data_alvo: datetime) -> pd.DataFrame:
-    data_formatada = format_date_for_api(data_alvo)
-    print(f'Buscando cotação para {data_formatada}...')
+def get_daily_dollar_rate(target_date: datetime) -> pd.DataFrame:
+    formatted_date = format_date_for_api(target_date)
+    print(f'Fetching exchange rate for {formatted_date}...')
 
     params = {
-        '@dataCotacao': f"'{data_formatada}'",
+        '@dataCotacao': f"'{formatted_date}'",
         '$format': 'json',
         '$select': 'cotacaoCompra,cotacaoVenda,dataHoraCotacao'
     }
@@ -21,32 +21,32 @@ def get_cotacao_dolar_diario(data_alvo: datetime) -> pd.DataFrame:
     try:
         response = requests.get(BASE_DAILY_URL_BCB_PTAX, params=params, timeout=15)
         response.raise_for_status()
-        dados_cotacoes = response.json()
+        exchange_data = response.json()
 
-        lista_cotacoes = dados_cotacoes.get('value', [])
-        if not lista_cotacoes:
-            print(f'Nenhuma cotação encontrada para o dia {data_formatada}')
+        rates_list = exchange_data.get('value', [])
+        if not rates_list:
+            print(f'No exchange rate found for {formatted_date}')
             return pd.DataFrame()
         
-        df_cotacoes_dia = pd.DataFrame(lista_cotacoes)
-        df_cotacoes_dia['dataHoraCotacao'] = pd.to_datetime(df_cotacoes_dia['dataHoraCotacao'], errors='coerce')
-        df_cotacoes_dia['dataCotacao'] = pd.to_datetime(data_alvo.date())
-        df_cotacoes_dia = df_cotacoes_dia.sort_values(by='dataHoraCotacao', ascending=False).head(1)
-        print(df_cotacoes_dia.head())
+        daily_rates_df = pd.DataFrame(rates_list)
+        daily_rates_df['dataHoraCotacao'] = pd.to_datetime(daily_rates_df['dataHoraCotacao'], errors='coerce')
+        daily_rates_df['dataCotacao'] = pd.to_datetime(target_date.date())
+        daily_rates_df = daily_rates_df.sort_values(by='dataHoraCotacao', ascending=False).head(1)
+        print(daily_rates_df.head())
+        return daily_rates_df
     except requests.exceptions.RequestException as e:
-        print(f'Erro de requisição ao buscar PTAX para {data_alvo}. Erro: {e}')
+        print(f'Request error when fetching PTAX for {target_date}. Error: {e}')
         return pd.DataFrame()
     except Exception as e:
-        print(f'Erro de requisição ao buscar PTAX para {data_alvo}. Erro: {e}')
+        print(f'Unexpected error when fetching PTAX for {target_date}. Error: {e}')
         return pd.DataFrame()
 
-
-def get_cotacao_dolar_periodo(start_date: datetime, end_date: datetime) -> pd.DataFrame:
+def get_dollar_rate_for_period(start_date: datetime, end_date: datetime) -> pd.DataFrame:
     try:
         api_start_date = format_date_for_api(start_date)
         api_end_date = format_date_for_api(end_date)
     except ValueError:
-        print(f'Formato de data inválido. O formato correto é YYYY-MM-DD.')
+        print('Invalid date format. The correct format is YYYY-MM-DD.')
         return None
     
     try:
@@ -59,15 +59,14 @@ def get_cotacao_dolar_periodo(start_date: datetime, end_date: datetime) -> pd.Da
         response = requests.get(url, timeout=15)
         response.raise_for_status()
         quotation_data = response.json()
-        lista_cotacoes = quotation_data.get('value', [])
-        print(lista_cotacoes)
+        rates_list = quotation_data.get('value', [])
+        print(rates_list)
+        return pd.DataFrame(rates_list)
     except Exception as e:
-        print(f'Um erro foi encontrado: {e}')
+        print(f'An error occurred: {e}')
+        return pd.DataFrame()
 
-data_inicio = datetime(2025, 1, 1)
-data_fim = datetime(2025, 1, 5)
-get_cotacao_dolar_periodo(data_inicio, data_fim)
-
-
-
-
+# Example usage
+start_date = datetime(2025, 1, 1)
+end_date = datetime(2025, 1, 5)
+get_dollar_rate_for_period(start_date, end_date)
