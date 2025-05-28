@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  airflow:
+    image: apache/airflow:2.9.0-python3.10
+    depends_on: [postgres]
+    env_file: .env
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
+    ports:
+      - "8080:8080"
+    command: > 
+      bash -c "
+        airflow db upgrade &&
+        airflow users create --username admin --password admin \
+            --firstname Admin --lastname User --role Admin --email a@b.com &&
+        airflow webserver &
+        airflow scheduler
+      "
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
